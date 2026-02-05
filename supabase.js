@@ -32,7 +32,8 @@ class SupabaseManager {
     
     onAuthStateChange(user) {
         if (user) {
-            console.log('User signed in:', user.email || user.id);
+            const username = user.user_metadata?.username || user.user_metadata?.display_name || 'User';
+            console.log('User signed in:', username);
             this.updateUIForAuthenticatedUser(user);
             this.syncUserData();
         } else {
@@ -41,27 +42,82 @@ class SupabaseManager {
         }
     }
     
-    // Authentication Methods
-    async signInWithEmail(email, password) {
-        const { data, error } = await this.supabase.auth.signInWithPassword({
-            email,
-            password
-        });
-        
-        if (error) {
-            throw new Error(error.message);
+    // Validation Methods
+    validateUsername(username) {
+        // Min 5 characters, max 18 characters
+        if (username.length < 5 || username.length > 18) {
+            return { valid: false, error: 'Username must be 5-18 characters long' };
         }
         
-        return data;
+        // No spaces
+        if (username.includes(' ')) {
+            return { valid: false, error: 'Username cannot contain spaces' };
+        }
+        
+        // Only alphanumeric, _, ., -
+        const usernameRegex = /^[a-zA-Z0-9._-]+$/;
+        if (!usernameRegex.test(username)) {
+            return { valid: false, error: 'Username can only contain letters, numbers, _, ., and -' };
+        }
+        
+        return { valid: true };
     }
     
-    async signUpWithEmail(email, password, username) {
+    validatePassword(password) {
+        // Min 8 characters, max 18 characters
+        if (password.length < 8 || password.length > 18) {
+            return { valid: false, error: 'Password must be 8-18 characters long' };
+        }
+        
+        // No spaces
+        if (password.includes(' ')) {
+            return { valid: false, error: 'Password cannot contain spaces' };
+        }
+        
+        // Only alphanumeric, _, ., -, @, $, %
+        const passwordRegex = /^[a-zA-Z0-9._\-@$%]+$/;
+        if (!passwordRegex.test(password)) {
+            return { valid: false, error: 'Password can only contain letters, numbers, _, ., -, @, $, and %' };
+        }
+        
+        return { valid: true };
+    }
+    
+    // Authentication Methods
+    async signUpWithUsername(username, password) {
+        // Validate username
+        const usernameValidation = this.validateUsername(username);
+        if (!usernameValidation.valid) {
+            throw new Error(usernameValidation.error);
+        }
+        
+        // Validate password
+        const passwordValidation = this.validatePassword(password);
+        if (!passwordValidation.valid) {
+            throw new Error(passwordValidation.error);
+        }
+        
+        // Check if username already exists
+        const { data: existingUser } = await this.supabase
+            .from('users')
+            .select('username')
+            .eq('username', username)
+            .single();
+        
+        if (existingUser) {
+            throw new Error('Username already taken');
+        }
+        
+        // Create a synthetic email for Supabase auth (username@stoichmaster.local)
+        const syntheticEmail = `${username}@stoichmaster.local`;
+        
         const { data, error } = await this.supabase.auth.signUp({
-            email,
-            password,
+            email: syntheticEmail,
+            password: password,
             options: {
                 data: {
-                    username: username
+                    username: username,
+                    display_name: username
                 }
             }
         });
@@ -72,22 +128,29 @@ class SupabaseManager {
         
         // Create user profile
         if (data.user) {
-            await this.createUserProfile(data.user.id, username, email);
+            await this.createUserProfile(data.user.id, username, null);
         }
         
         return data;
     }
     
-    async signInWithGoogle() {
-        const { data, error } = await this.supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: window.location.origin
-            }
+    async signInWithUsername(username, password) {
+        // Validate username format
+        const usernameValidation = this.validateUsername(username);
+        if (!usernameValidation.valid) {
+            throw new Error(usernameValidation.error);
+        }
+        
+        // Convert username to synthetic email
+        const syntheticEmail = `${username}@stoichmaster.local`;
+        
+        const { data, error } = await this.supabase.auth.signInWithPassword({
+            email: syntheticEmail,
+            password: password
         });
         
         if (error) {
-            throw new Error(error.message);
+            throw new Error('Invalid username or password');
         }
         
         return data;
@@ -298,14 +361,8 @@ class SupabaseManager {
                 <h2 class="text-2xl font-bold text-gray-800 mb-6">Sign In to StoichMaster</h2>
                 
                 <div class="space-y-4">
-                    <button id="googleSignIn" class="w-full bg-white border-2 border-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center">
-                        <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                            <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                            <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                            <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                        Continue with Google
+                    <button id="usernameSignIn" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors">
+                        <i class="fas fa-user mr-2"></i>Sign In with Username
                     </button>
                     
                     <div class="relative">
@@ -320,10 +377,6 @@ class SupabaseManager {
                     <button id="anonymousSignIn" class="w-full bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors">
                         <i class="fas fa-user-secret mr-2"></i>Continue as Guest
                     </button>
-                    
-                    <button id="emailSignIn" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors">
-                        <i class="fas fa-envelope mr-2"></i>Sign In with Email
-                    </button>
                 </div>
                 
                 <button id="closeAuthModal" class="mt-6 text-gray-500 hover:text-gray-700 w-full text-center">
@@ -335,13 +388,8 @@ class SupabaseManager {
         document.body.appendChild(modal);
         
         // Add event listeners
-        document.getElementById('googleSignIn')?.addEventListener('click', async () => {
-            try {
-                await this.signInWithGoogle();
-                modal.remove();
-            } catch (error) {
-                alert('Error signing in with Google: ' + error.message);
-            }
+        document.getElementById('usernameSignIn')?.addEventListener('click', () => {
+            this.showUsernameAuthForm();
         });
         
         document.getElementById('anonymousSignIn')?.addEventListener('click', async () => {
@@ -351,10 +399,6 @@ class SupabaseManager {
             } catch (error) {
                 alert('Error signing in anonymously: ' + error.message);
             }
-        });
-        
-        document.getElementById('emailSignIn')?.addEventListener('click', () => {
-            this.showEmailAuthForm();
         });
         
         document.getElementById('closeAuthModal')?.addEventListener('click', () => {
@@ -368,37 +412,38 @@ class SupabaseManager {
         });
     }
     
-    showEmailAuthForm() {
+    showUsernameAuthForm() {
         const authModal = document.getElementById('authModal');
         if (!authModal) return;
         
         const modalContent = authModal.querySelector('div');
         modalContent.innerHTML = `
-            <h2 class="text-2xl font-bold text-gray-800 mb-6">Email Sign In</h2>
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Username Sign In</h2>
             
-            <div id="emailAuthTabs" class="flex space-x-4 mb-6">
-                <button class="email-auth-tab px-4 py-2 font-medium border-b-2 border-indigo-600 text-indigo-600" data-tab="signin">
+            <div id="usernameAuthTabs" class="flex space-x-4 mb-6">
+                <button class="username-auth-tab px-4 py-2 font-medium border-b-2 border-indigo-600 text-indigo-600" data-tab="signin">
                     Sign In
                 </button>
-                <button class="email-auth-tab px-4 py-2 font-medium text-gray-600" data-tab="signup">
+                <button class="username-auth-tab px-4 py-2 font-medium text-gray-600" data-tab="signup">
                     Sign Up
                 </button>
             </div>
             
-            <form id="emailAuthForm" class="space-y-4">
-                <div id="usernameField" class="hidden">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
-                    <input type="text" id="username" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
-                </div>
-                
+            <form id="usernameAuthForm" class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input type="email" id="email" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input type="text" id="username" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none" placeholder="5-18 characters">
+                    <p class="text-xs text-gray-500 mt-1">Letters, numbers, _, ., - only (no spaces)</p>
                 </div>
                 
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <input type="password" id="password" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none">
+                    <input type="password" id="password" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:outline-none" placeholder="8-18 characters">
+                    <p class="text-xs text-gray-500 mt-1">Letters, numbers, _, ., -, @, $, % only (no spaces)</p>
+                </div>
+                
+                <div id="errorMessage" class="hidden bg-red-50 border-l-4 border-red-400 p-3 rounded">
+                    <p class="text-sm text-red-700"></p>
                 </div>
                 
                 <button type="submit" class="w-full bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors">
@@ -413,45 +458,49 @@ class SupabaseManager {
         
         let currentTab = 'signin';
         
-        document.querySelectorAll('.email-auth-tab').forEach(tab => {
+        document.querySelectorAll('.username-auth-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
                 currentTab = e.target.dataset.tab;
                 
-                document.querySelectorAll('.email-auth-tab').forEach(t => {
-                    t.className = 'email-auth-tab px-4 py-2 font-medium text-gray-600';
+                document.querySelectorAll('.username-auth-tab').forEach(t => {
+                    t.className = 'username-auth-tab px-4 py-2 font-medium text-gray-600';
                 });
-                e.target.className = 'email-auth-tab px-4 py-2 font-medium border-b-2 border-indigo-600 text-indigo-600';
+                e.target.className = 'username-auth-tab px-4 py-2 font-medium border-b-2 border-indigo-600 text-indigo-600';
                 
-                const usernameField = document.getElementById('usernameField');
-                const submitBtn = document.querySelector('#emailAuthForm button[type="submit"]');
+                const submitBtn = document.querySelector('#usernameAuthForm button[type="submit"]');
+                const errorMessage = document.getElementById('errorMessage');
                 
                 if (currentTab === 'signup') {
-                    usernameField.classList.remove('hidden');
                     submitBtn.textContent = 'Sign Up';
                 } else {
-                    usernameField.classList.add('hidden');
                     submitBtn.textContent = 'Sign In';
                 }
+                
+                errorMessage.classList.add('hidden');
             });
         });
         
-        document.getElementById('emailAuthForm')?.addEventListener('submit', async (e) => {
+        document.getElementById('usernameAuthForm')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const username = document.getElementById('username')?.value;
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = errorMessage.querySelector('p');
             
             try {
+                errorMessage.classList.add('hidden');
+                
                 if (currentTab === 'signup') {
-                    await this.signUpWithEmail(email, password, username);
-                    alert('Sign up successful! Please check your email to verify your account.');
+                    await this.signUpWithUsername(username, password);
+                    alert('Sign up successful! You can now sign in.');
                 } else {
-                    await this.signInWithEmail(email, password);
+                    await this.signInWithUsername(username, password);
                 }
                 authModal.remove();
             } catch (error) {
-                alert('Error: ' + error.message);
+                errorText.textContent = error.message;
+                errorMessage.classList.remove('hidden');
             }
         });
         
