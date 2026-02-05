@@ -92,12 +92,15 @@ class StoichMasterApp {
         
         // Step-by-step mode buttons
         document.getElementById('stoichStepByStepBtn')?.addEventListener('click', () => {
+            console.log('Stoich step-by-step button clicked');
             this.stepByStepManager.activate('stoichiometry');
         });
         document.getElementById('conversionStepByStepBtn')?.addEventListener('click', () => {
+            console.log('Conversion step-by-step button clicked');
             this.stepByStepManager.activate('conversion');
         });
         document.getElementById('balancingStepByStepBtn')?.addEventListener('click', () => {
+            console.log('Balancing step-by-step button clicked');
             this.stepByStepManager.activate('balancing');
         });
         

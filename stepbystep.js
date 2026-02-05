@@ -176,6 +176,9 @@ class StepByStepManager {
     }
     
     activate(problemType) {
+        console.log('Step-by-step activated for:', problemType);
+        console.log('Current problem:', this.app.currentProblem);
+        
         if (!this.app.currentProblem) {
             alert('Generate a problem first!');
             return;
@@ -183,6 +186,7 @@ class StepByStepManager {
         
         this.active = true;
         this.generateSteps(this.app.currentProblem, problemType);
+        console.log('Generated steps:', this.steps);
         this.currentStep = 0;
         this.showStepByStepUI();
     }
@@ -193,10 +197,18 @@ class StepByStepManager {
     }
     
     showStepByStepUI() {
-        const container = document.getElementById(`${this.problemType}StepByStep`);
-        if (!container) return;
+        const containerId = `${this.problemType}StepByStep`;
+        console.log('Looking for container:', containerId);
+        const container = document.getElementById(containerId);
+        console.log('Container found:', container);
+        
+        if (!container) {
+            console.error('Container not found!');
+            return;
+        }
         
         container.classList.remove('hidden');
+        console.log('Container should now be visible');
         this.updateStepDisplay();
     }
     
