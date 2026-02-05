@@ -91,13 +91,13 @@ class StoichMasterApp {
         });
         
         // Step-by-step mode buttons
-        document.getElementById('stoichStepByStep')?.addEventListener('click', () => {
+        document.getElementById('stoichStepByStepBtn')?.addEventListener('click', () => {
             this.stepByStepManager.activate('stoichiometry');
         });
-        document.getElementById('conversionStepByStep')?.addEventListener('click', () => {
+        document.getElementById('conversionStepByStepBtn')?.addEventListener('click', () => {
             this.stepByStepManager.activate('conversion');
         });
-        document.getElementById('balancingStepByStep')?.addEventListener('click', () => {
+        document.getElementById('balancingStepByStepBtn')?.addEventListener('click', () => {
             this.stepByStepManager.activate('balancing');
         });
         
