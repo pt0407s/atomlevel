@@ -17,7 +17,7 @@ class StoichMasterApp {
         this.stepByStepManager = new StepByStepManager(this);
         
         // Load saved XP
-        const savedXP = localStorage.getItem('stoichmaster_xp');
+        const savedXP = localStorage.getItem('atomlevel_xp');
         this.totalXP = savedXP ? parseInt(savedXP) : 0;
         
         // Chemical data
@@ -684,7 +684,7 @@ class StoichMasterApp {
         
         this.totalXP += xpEarned;
         this.streak += 1;
-        localStorage.setItem('stoichmaster_xp', this.totalXP);
+        localStorage.setItem('atomlevel_xp', this.totalXP);
         
         this.statsManager.updateStreak(this.streak);
         this.updateRankDisplay();

@@ -1,6 +1,6 @@
-# StoichMaster
+# AtomLevel
 
-A gamified chemistry practice platform with XP progression, ranks, global leaderboard, and step-by-step tutorials. Master stoichiometry, unit conversions, and chemical equation balancing!
+Level up your chemistry skills! A gamified chemistry practice platform with XP progression, ranks, global leaderboard, and step-by-step tutorials. Master stoichiometry, unit conversions, and chemical equation balancing!
 
 ## 🎮 Features
 
