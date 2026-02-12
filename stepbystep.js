@@ -437,8 +437,19 @@ class StepByStepManager {
         this.currentStep++;
         
         if (this.currentStep >= this.steps.length) {
-            // All steps completed - exit step-by-step mode and return to normal
+            // All steps completed - exit step-by-step mode and generate new problem
             this.deactivate();
+            
+            // Generate a new problem based on the problem type
+            setTimeout(() => {
+                const typeMap = {
+                    'stoichiometry': 'stoich',
+                    'conversion': 'conversion',
+                    'balancing': 'balancing'
+                };
+                const type = typeMap[this.problemType] || 'stoich';
+                this.app.generateNewProblem(type);
+            }, 500);
         } else {
             this.updateStepDisplay();
         }

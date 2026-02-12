@@ -690,7 +690,7 @@ class StoichMasterApp {
         this.updateRankDisplay();
         
         const timeBonus = timeTaken < 10 ? ' ⚡ Speed Bonus!' : '';
-        this.showFeedback(type, `Correct! +${xpEarned} XP${timeBonus} - Next question in 2s...`, true);
+        this.showFeedback(type, `Correct! +${xpEarned} XP${timeBonus} - Next question in 1s...`, true);
         
         const input = document.getElementById(`${type}Answer`);
         if (input) {
@@ -698,10 +698,10 @@ class StoichMasterApp {
             setTimeout(() => input.classList.remove('correct-answer'), 600);
         }
         
-        // Auto-advance to next question after 2 seconds
+        // Auto-advance to next question after 1 second
         setTimeout(() => {
             this.generateNewProblem(type);
-        }, 2000);
+        }, 1000);
     }
     
     handleIncorrectAnswer(type) {
