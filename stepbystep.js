@@ -35,6 +35,45 @@ class StepByStepManager {
         const steps = [];
         
         switch (problem.subtype) {
+            case 'percent-composition':
+                const elementMass = this.app.getElementMassInCompound(problem.compound.formula, problem.element);
+                steps.push({
+                    instruction: `First, find the total mass of ${problem.element} in one molecule of ${problem.compound.formula}`,
+                    hint: `Count the ${problem.element} atoms and multiply by atomic mass. Total: ${elementMass.toFixed(3)} g/mol`,
+                    expectedAnswer: elementMass,
+                    tolerance: 0.01,
+                    unit: 'g/mol'
+                });
+                steps.push({
+                    instruction: `Now divide the element mass by the compound's molar mass and multiply by 100`,
+                    hint: `(${elementMass.toFixed(3)} ÷ ${problem.compound.molarMass.toFixed(3)}) × 100`,
+                    calculation: `(${elementMass.toFixed(3)} ÷ ${problem.compound.molarMass.toFixed(3)}) × 100`,
+                    expectedAnswer: problem.answer,
+                    tolerance: 0.5,
+                    unit: '%'
+                });
+                break;
+                
+            case 'mole-ratio':
+                const molesCompound = problem.given.value / problem.compound.molarMass;
+                steps.push({
+                    instruction: `Step 1: Convert the mass of ${problem.compound.formula} to moles`,
+                    hint: `Divide ${problem.given.value} g by ${problem.compound.molarMass.toFixed(3)} g/mol`,
+                    calculation: `${problem.given.value} ÷ ${problem.compound.molarMass.toFixed(3)}`,
+                    expectedAnswer: molesCompound,
+                    tolerance: molesCompound * 0.05,
+                    unit: 'mol'
+                });
+                steps.push({
+                    instruction: `Step 2: Use the mole ratio. Each molecule of ${problem.compound.formula} contains ${problem.elementCount} atom(s) of ${problem.element}`,
+                    hint: `Multiply ${molesCompound.toFixed(4)} mol by ${problem.elementCount}`,
+                    calculation: `${molesCompound.toFixed(4)} × ${problem.elementCount}`,
+                    expectedAnswer: problem.answer,
+                    tolerance: problem.answer * 0.05,
+                    unit: 'mol'
+                });
+                break;
+                
             case 'mass-to-moles':
                 steps.push({
                     instruction: `First, identify the molar mass of ${problem.compound.formula}`,
@@ -176,9 +215,6 @@ class StepByStepManager {
     }
     
     activate(problemType) {
-        console.log('Step-by-step activated for:', problemType);
-        console.log('Current problem:', this.app.currentProblem);
-        
         if (!this.app.currentProblem) {
             alert('Generate a problem first!');
             return;
@@ -186,7 +222,6 @@ class StepByStepManager {
         
         this.active = true;
         this.generateSteps(this.app.currentProblem, problemType);
-        console.log('Generated steps:', this.steps);
         this.currentStep = 0;
         this.showStepByStepUI();
     }
@@ -197,24 +232,48 @@ class StepByStepManager {
     }
     
     showStepByStepUI() {
-        const containerId = `${this.problemType}StepByStep`;
-        console.log('Looking for container:', containerId);
-        const container = document.getElementById(containerId);
-        console.log('Container found:', container);
+        // Hide normal answer input and buttons
+        const answerInput = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Answer`);
+        const checkBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Check`);
+        const hintBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Hint`);
+        const newBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}New`);
         
-        if (!container) {
-            console.error('Container not found!');
-            return;
+        if (answerInput) answerInput.style.display = 'none';
+        if (checkBtn) checkBtn.style.display = 'none';
+        if (hintBtn) hintBtn.style.display = 'none';
+        if (newBtn) newBtn.style.display = 'none';
+        
+        // Hide unit selector for stoichiometry
+        if (this.problemType === 'stoichiometry') {
+            const unitSelect = document.getElementById('stoichUnit');
+            if (unitSelect) unitSelect.style.display = 'none';
         }
         
-        container.classList.remove('hidden');
-        console.log('Container should now be visible');
         this.updateStepDisplay();
     }
     
     hideStepByStepUI() {
+        // Show normal answer input and buttons again
+        const answerInput = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Answer`);
+        const checkBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Check`);
+        const hintBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}Hint`);
+        const newBtn = document.getElementById(`${this.problemType === 'stoichiometry' ? 'stoich' : this.problemType}New`);
+        
+        if (answerInput) answerInput.style.display = '';
+        if (checkBtn) checkBtn.style.display = '';
+        if (hintBtn) hintBtn.style.display = '';
+        if (newBtn) newBtn.style.display = '';
+        
+        // Show unit selector for stoichiometry
+        if (this.problemType === 'stoichiometry') {
+            const unitSelect = document.getElementById('stoichUnit');
+            if (unitSelect) unitSelect.style.display = '';
+        }
+        
+        // Clear step-by-step overlay
         const container = document.getElementById(`${this.problemType}StepByStep`);
         if (container) {
+            container.innerHTML = '';
             container.classList.add('hidden');
         }
     }
@@ -223,23 +282,28 @@ class StepByStepManager {
         const container = document.getElementById(`${this.problemType}StepByStep`);
         if (!container) return;
         
+        container.classList.remove('hidden');
+        
         const step = this.steps[this.currentStep];
         const isLastStep = this.currentStep === this.steps.length - 1;
         
         let html = `
-            <div class="bg-blue-50 border-l-4 border-blue-400 p-6 rounded-lg mb-6">
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-400 p-6 rounded-xl shadow-lg mb-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-bold text-blue-800">
-                        <i class="fas fa-graduation-cap mr-2"></i>Step ${this.currentStep + 1} of ${this.steps.length}
-                    </h3>
-                    <button id="${this.problemType}ExitStepByStep" class="text-blue-600 hover:text-blue-800">
-                        <i class="fas fa-times"></i> Exit Guide
+                    <div>
+                        <h3 class="text-xl font-bold text-blue-800">
+                            <i class="fas fa-shoe-prints mr-2"></i>Step-by-Step Guide
+                        </h3>
+                        <p class="text-sm text-blue-600 mt-1">Step ${this.currentStep + 1} of ${this.steps.length}</p>
+                    </div>
+                    <button id="${this.problemType}ExitStepByStep" class="text-red-600 hover:text-red-800 font-medium">
+                        <i class="fas fa-times-circle mr-1"></i> Exit
                     </button>
                 </div>
                 
-                <div class="mb-4">
+                <div class="mb-4 bg-white p-4 rounded-lg border border-blue-200">
                     <p class="text-blue-900 font-medium mb-2">${step.instruction}</p>
-                    ${step.calculation ? `<p class="text-sm text-blue-700 font-mono bg-blue-100 p-2 rounded">Calculate: ${step.calculation}</p>` : ''}
+                    ${step.calculation ? `<p class="text-sm text-blue-700 font-mono bg-blue-50 p-3 rounded mt-2 border-l-4 border-blue-400">💡 Calculate: ${step.calculation}</p>` : ''}
                 </div>
         `;
         
@@ -274,8 +338,13 @@ class StepByStepManager {
         }
         
         html += `
-                <div class="mt-4 text-xs text-blue-600">
-                    <i class="fas fa-info-circle mr-1"></i>No XP earned in step-by-step mode
+                <div class="mt-4 flex items-center justify-between">
+                    <div class="text-xs text-blue-600">
+                        <i class="fas fa-info-circle mr-1"></i>No XP earned in step-by-step mode
+                    </div>
+                    <div class="text-xs text-gray-500">
+                        Progress: ${this.currentStep + 1}/${this.steps.length}
+                    </div>
                 </div>
             </div>
         `;

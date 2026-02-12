@@ -92,15 +92,12 @@ class StoichMasterApp {
         
         // Step-by-step mode buttons
         document.getElementById('stoichStepByStepBtn')?.addEventListener('click', () => {
-            console.log('Stoich step-by-step button clicked');
             this.stepByStepManager.activate('stoichiometry');
         });
         document.getElementById('conversionStepByStepBtn')?.addEventListener('click', () => {
-            console.log('Conversion step-by-step button clicked');
             this.stepByStepManager.activate('conversion');
         });
         document.getElementById('balancingStepByStepBtn')?.addEventListener('click', () => {
-            console.log('Balancing step-by-step button clicked');
             this.stepByStepManager.activate('balancing');
         });
         
@@ -238,7 +235,7 @@ class StoichMasterApp {
     // Stoichiometry Methods
     generateStoichiometryProblem() {
         const compound = this.compounds[Math.floor(Math.random() * this.compounds.length)];
-        const problemTypes = ['mass-to-moles', 'moles-to-mass', 'mass-to-molecules', 'moles-to-molecules'];
+        const problemTypes = ['mass-to-moles', 'moles-to-mass', 'mass-to-molecules', 'moles-to-molecules', 'percent-composition', 'mole-ratio'];
         const problemType = problemTypes[Math.floor(Math.random() * problemTypes.length)];
         
         let problem = {};
@@ -250,6 +247,52 @@ class StoichMasterApp {
                           this.currentDifficulty === 'hard' ? 2 : 3;
         
         switch (problemType) {
+            case 'percent-composition':
+                // Calculate percent composition of an element in a compound
+                // For simplicity, we'll use compounds with known formulas
+                const elements = this.getElementsInCompound(compound.formula);
+                const randomElement = elements[Math.floor(Math.random() * elements.length)];
+                const elementMass = this.getElementMassInCompound(compound.formula, randomElement);
+                const percentComp = (elementMass / compound.molarMass) * 100;
+                
+                question = `What is the percent composition of ${randomElement} in ${compound.formula}?`;
+                givenInfo = `Molar mass of ${compound.formula}: ${compound.molarMass.toFixed(3)} g/mol`;
+                problem = {
+                    type: 'stoichiometry',
+                    subtype: 'percent-composition',
+                    compound: compound,
+                    element: randomElement,
+                    question: question,
+                    given: { value: compound.molarMass, unit: 'g/mol' },
+                    answer: percentComp,
+                    answerUnit: '%'
+                };
+                break;
+                
+            case 'mole-ratio':
+                // Multi-step: Given mass of compound, find moles of a specific element
+                const elementsInCompound = this.getElementsInCompound(compound.formula);
+                const targetElement = elementsInCompound[Math.floor(Math.random() * elementsInCompound.length)];
+                const elementCount = this.getElementCount(compound.formula, targetElement);
+                const givenMass = (Math.random() * 50 + 10).toFixed(2);
+                const molesOfCompound = parseFloat(givenMass) / compound.molarMass;
+                const molesOfElement = molesOfCompound * elementCount;
+                
+                question = `How many moles of ${targetElement} are in ${givenMass} g of ${compound.formula}?`;
+                givenInfo = `Molar mass of ${compound.formula}: ${compound.molarMass.toFixed(3)} g/mol<br>${compound.formula} contains ${elementCount} ${targetElement} atom(s) per molecule`;
+                problem = {
+                    type: 'stoichiometry',
+                    subtype: 'mole-ratio',
+                    compound: compound,
+                    element: targetElement,
+                    elementCount: elementCount,
+                    question: question,
+                    given: { value: parseFloat(givenMass), unit: 'g' },
+                    answer: molesOfElement,
+                    answerUnit: 'mol'
+                };
+                break;
+                
             case 'mass-to-moles':
                 const mass1 = (Math.random() * 100 * multiplier + 10).toFixed(2);
                 problem = {
@@ -356,11 +399,60 @@ class StoichMasterApp {
         }
     }
     
+    getElementsInCompound(formula) {
+        // Simple parser to extract unique elements from formula
+        const elements = formula.match(/[A-Z][a-z]?/g) || [];
+        return [...new Set(elements)];
+    }
+    
+    getElementCount(formula, element) {
+        // Simple parser to count atoms of an element in a formula
+        const regex = new RegExp(element + '(\\d*)', 'g');
+        const matches = formula.match(regex);
+        if (!matches) return 0;
+        
+        let count = 0;
+        matches.forEach(match => {
+            const num = match.replace(element, '');
+            count += num === '' ? 1 : parseInt(num);
+        });
+        return count;
+    }
+    
+    getElementMassInCompound(formula, element) {
+        // Atomic masses (simplified)
+        const atomicMasses = {
+            'H': 1.008, 'C': 12.011, 'N': 14.007, 'O': 15.999,
+            'Na': 22.990, 'Mg': 24.305, 'S': 32.065, 'Cl': 35.453,
+            'K': 39.098, 'Ca': 40.078, 'Fe': 55.845, 'Ag': 107.868
+        };
+        
+        const count = this.getElementCount(formula, element);
+        return count * (atomicMasses[element] || 0);
+    }
+    
     generateStoichiometryExplanation() {
         const problem = this.currentProblem;
         let explanation = `<h4 class="font-bold text-green-800 mb-2">Solution:</h4>`;
         
         switch (problem.subtype) {
+            case 'percent-composition':
+                const elementMass = this.getElementMassInCompound(problem.compound.formula, problem.element);
+                explanation += `To find percent composition:<br>`;
+                explanation += `1. Find mass of ${problem.element} in formula: ${elementMass.toFixed(3)} g/mol<br>`;
+                explanation += `2. Divide by total molar mass: ${elementMass.toFixed(3)} ÷ ${problem.compound.molarMass.toFixed(3)}<br>`;
+                explanation += `3. Multiply by 100: ${problem.answer.toFixed(2)}%`;
+                break;
+                
+            case 'mole-ratio':
+                const molesCompound = problem.given.value / problem.compound.molarMass;
+                explanation += `Step 1: Convert mass to moles of compound<br>`;
+                explanation += `Moles of ${problem.compound.formula} = ${problem.given.value} g ÷ ${problem.compound.molarMass.toFixed(3)} g/mol = ${molesCompound.toFixed(4)} mol<br><br>`;
+                explanation += `Step 2: Use mole ratio to find moles of ${problem.element}<br>`;
+                explanation += `Each ${problem.compound.formula} has ${problem.elementCount} ${problem.element} atom(s)<br>`;
+                explanation += `Moles of ${problem.element} = ${molesCompound.toFixed(4)} × ${problem.elementCount} = ${problem.answer.toFixed(4)} mol`;
+                break;
+                
             case 'mass-to-moles':
                 explanation += `To convert mass to moles:<br>`;
                 explanation += `Moles = Mass ÷ Molar Mass<br>`;
@@ -598,24 +690,55 @@ class StoichMasterApp {
         this.updateRankDisplay();
         
         const timeBonus = timeTaken < 10 ? ' ⚡ Speed Bonus!' : '';
-        this.showFeedback(type, `Correct! +${xpEarned} XP${timeBonus}`, true);
+        this.showFeedback(type, `Correct! +${xpEarned} XP${timeBonus} - Next question in 2s...`, true);
         
         const input = document.getElementById(`${type}Answer`);
         if (input) {
             input.classList.add('correct-answer');
             setTimeout(() => input.classList.remove('correct-answer'), 600);
         }
+        
+        // Auto-advance to next question after 2 seconds
+        setTimeout(() => {
+            this.generateNewProblem(type);
+        }, 2000);
     }
     
     handleIncorrectAnswer(type) {
         this.streak = 0;
-        document.getElementById('streak').textContent = this.streak;
         this.showFeedback(type, 'Incorrect. Try again!', false);
-        
+    }
+    
+    generateNewProblem(type) {
+        // Clear input and feedback
         const input = document.getElementById(`${type}Answer`);
         if (input) {
-            input.classList.add('incorrect-answer');
-            setTimeout(() => input.classList.remove('incorrect-answer'), 600);
+            input.value = '';
+        }
+        
+        // Hide explanation
+        const explanation = document.getElementById(`${type}Explanation`);
+        if (explanation) {
+            explanation.classList.add('hidden');
+        }
+        
+        // Hide feedback
+        const feedback = document.getElementById(`${type}Feedback`);
+        if (feedback) {
+            feedback.classList.add('hidden');
+        }
+        
+        // Generate new problem based on type
+        switch(type) {
+            case 'stoich':
+                this.generateStoichiometryProblem();
+                break;
+            case 'conversion':
+                this.generateConversionProblem();
+                break;
+            case 'balancing':
+                this.generateBalancingProblem();
+                break;
         }
     }
     
